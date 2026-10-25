@@ -10,12 +10,12 @@
   ;; a reference what it does on delete, update and when checked, an index as a map;
   ;; migrate! takes {:tables :extensions :functions :views}; run-in-transaction! takes the
   ;; caller's :log
-  io.github.p4ulcristian/groundwork-postgres   {:git/tag "v0.4.7" :git/sha "d6f226c"}
+  io.github.p4ulcristian/groundwork-postgres   {:git/tag "v0.4.8" :git/sha "322b4b1"}
   ;; groundwork-steps: a handler's notes and the message's log in its steps' context, and the
   ;; browser's no-answer refusal (the lines a change is told on are the app's, handed in)
   io.github.p4ulcristian/groundwork-steps {:git/tag "v0.1.0" :git/sha "ed9458e"}
   ;; the app's meter, handed in: changes heard, lines told, whether it listens
-  io.github.p4ulcristian/groundwork-metrics    {:git/tag "v0.1.5" :git/sha "1cffe8e"}
+  io.github.p4ulcristian/groundwork-metrics    {:git/tag "v0.1.6" :git/sha "88ae7a3"}
   ;; the settings checked by their shapes
   metosin/malli                  {:mvn/version "0.20.3"}
   ;; Postgres's change messages read, JSON groundwork-live-updates's own trigger writes
