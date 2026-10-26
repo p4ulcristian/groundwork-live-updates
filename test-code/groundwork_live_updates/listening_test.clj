@@ -201,7 +201,7 @@
                            {:shops/all {:params-shape nil :answer-shape nil :refusals {} :rate-limit nil :run-steps-in nil
                                         :steps [{:name  :ask-untyped
                                                  :enter #(steps/add-answer-to-context
-                                                          % (:b (postgres/find-one-row app-pool (query "SELECT :x IS NULL AS b") {:x "a"})))}]}})]
+                                                          % (:b (postgres/find-one-row app-pool (query "SELECT param('x') IS NULL AS b") {:x "a"})))}]}})]
                 (is (= [false {:tables "any"}] (answer-message (:shops/all ready))))
                 (let [[line] (filter #(= "groundwork-postgres/tables-read-unknown" (get % "event")) @lines)]
                   (is (= "warn" (get line "level")))
