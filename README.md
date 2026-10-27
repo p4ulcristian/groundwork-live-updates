@@ -18,7 +18,7 @@ at once, past the window
 decides no one's access.
 
 ```clojure
-io.github.p4ulcristian/groundwork-live-updates {:git/tag "v0.6.1" :git/sha "dcae08b"}
+io.github.p4ulcristian/groundwork-live-updates {:git/tag "v0.6.2" :git/sha "ff934b1"}
 ```
 
 Needs [groundwork-postgres](https://github.com/p4ulcristian/groundwork-postgres) (Postgres: the
