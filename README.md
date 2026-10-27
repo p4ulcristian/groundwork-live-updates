@@ -6,8 +6,13 @@ listening server which table changed: only its name, no ids, no values.
 Each server tells every open sse line `{:groundwork-live-updates/changed {:table
 "orders"}}`. Every answer says the tables it was read from, so the
 browser's question store asks again only the watched questions that read
-the changed table; the gates (Postgres's row rules) decide what each asker
-gets. groundwork-live-updates decides no one's access.
+the changed table, and calmly: only on a page someone can see (a hidden
+tab asks once when it is seen again), each question at most once in
+`:ask-again-at-most-every-ms` (a burst of changes is one ask), a change
+during a running ask asked once after it
+([why](decisions/2026-10-27-the-browser-asks-again-calmly.md)); the gates
+(Postgres's row rules) decide what each asker gets. groundwork-live-updates
+decides no one's access.
 
 ```clojure
 io.github.p4ulcristian/groundwork-live-updates {:git/tag "v0.5.14" :git/sha "9c29bbe"}
@@ -54,9 +59,9 @@ open lines (groundwork-bridge's `groundwork_bridge_open_lines`).
 | server | `listening-settings-shape` `start-listening!` `stop-listening!` | listens on the channel `groundwork_live_updates`, tells every open line by the app's `:push!`; its batch window, waits and reconnect delay are required settings, the app's log, meter, tables, `:push!` and `:find-line-key` required options |
 | server | `add-sse-line!` `remove-sse-line!` `count-open-lines` | for the app's sse open and close hooks; a line kept under its `:find-line-key` |
 | both | `store-settings-shape` | the question store's settings, every key required |
-| browser | `make-question-store` | answers kept by question, `[name params]`, asked through the app's send (groundwork-bridge's `send-message!` in groundwork) |
-| browser | `watch-question!` `ask-question-again!` `find-kept-answer` | a screen watches what it shows; asked now, and again when a table it read changes |
-| browser | `is-question-being-asked?` | whether a fresher answer is on its way: out now, or a gathered change will ask it |
+| browser | `make-question-store` | answers kept by question, `[name params]`, asked through the app's send (groundwork-bridge's `send-message!` in groundwork); the page's document handed in (`{:page js/document}`), whose visibility says whether to ask again |
+| browser | `watch-question!` `ask-question-again!` `find-kept-answer` | a screen watches what it shows; asked now, and again, calmly, when a table it read changes |
+| browser | `is-question-being-asked?` | whether a fresher answer is on its way: out now, or it will be asked again (after the ask that is out, at its window's end, when the page is seen, or by a gathered change) |
 | browser | `hear-changed-table!` | a table changed, told by the browser itself (a write's answer): gathered, then what read it is asked again |
 | browser | `message-shapes-by-name` `make-sse-handlers` `hear-missed-changes!` | the two messages, their shapes and handlers; after a break, every watched question asked again |
 
@@ -107,8 +112,10 @@ and [listening's numbers](decisions/2026-10-22-listening-s-numbers-are-settings.
 
 ;; the browser, plugged into the wire the same way
 (def store (live-updates/make-question-store #(bridge/send-message! (:http addresses) shapes-by-name % {:shaper shaper :headers {} :keep-alive? false})
-                                         {:gather-changes-ms         50       ; changes heard together, one round of asking
-                                          :keep-unwatched-answers-ms 300000})) ; an unwatched answer is kept this long
+                                         {:gather-changes-ms          50       ; changes heard together, one round of asking
+                                          :keep-unwatched-answers-ms  300000   ; an unwatched answer is kept this long
+                                          :ask-again-at-most-every-ms 2000}    ; each question asked again at most once in this
+                                         {:page js/document}))                ; a page nobody sees asks again once, when seen
 (bridge/open-sse-line! (:sse addresses) (merge shapes-by-name live-updates/message-shapes-by-name)
                          (live-updates/make-sse-handlers store)
                          {:shaper               shaper

@@ -6,7 +6,22 @@
    [cljs.test :refer [async deftest is testing]]
    [groundwork-live-updates.api :as live-updates]))
 
-(def ^:private settings {:gather-changes-ms 20 :keep-unwatched-answers-ms 40})
+(def ^:private settings {:gather-changes-ms 20 :keep-unwatched-answers-ms 40 :ask-again-at-most-every-ms 0})
+
+(defn- make-page
+  "A stand-in for the page's document: its visibilityState, and
+   (show! page) or (hide! page) as the browser tells visibilitychange."
+  [state]
+  (let [listeners (atom [])
+        page      #js {:visibilityState state}]
+    (set! (.-addEventListener page) (fn [event-name f] (when (= "visibilitychange" event-name) (swap! listeners conj f))))
+    (set! (.-tell page) (fn [new-state] (set! (.-visibilityState page) new-state) (doseq [f @listeners] (f))))
+    page))
+
+(defn- show! [^js page] (.tell page "visible"))
+(defn- hide! [^js page] (.tell page "hidden"))
+
+(defn- options [] {:page (make-page "visible")})
 
 (defn- make-stand-in-server
   "A send-message! that counts asks by name and answers with the count,
@@ -29,7 +44,7 @@
   (async done
          (let [{:keys [asked send-message!]} (make-stand-in-server {:orders/all ["orders"] :shops/all ["shops"]
                                                                     :totals/all "any"})
-               store    (live-updates/make-question-store send-message! settings)
+               store    (live-updates/make-question-store send-message! settings (options))
                heard    (atom [])
                handlers (live-updates/make-sse-handlers store)]
            (live-updates/watch-question! store [:orders/all {}] #(swap! heard conj %))
@@ -60,7 +75,7 @@
 (deftest an-unwatched-answer-is-kept-then-dropped
   (async done
          (let [{:keys [send-message!]} (make-stand-in-server {:orders/all ["orders"]})
-               store (live-updates/make-question-store send-message! settings)
+               store (live-updates/make-question-store send-message! settings (options))
                stop  (live-updates/watch-question! store [:orders/all {}] identity)]
            (after-ms 10
                      (fn []
@@ -76,7 +91,7 @@
 
 (deftest no-answer-from-the-server
   (async done
-         (let [store (live-updates/make-question-store (fn [_] (js/Promise.reject (js/Error. "offline"))) settings)
+         (let [store (live-updates/make-question-store (fn [_] (js/Promise.reject (js/Error. "offline"))) settings (options))
                heard (atom [])]
            (live-updates/watch-question! store [:orders/all {}] #(swap! heard conj %))
            (after-ms 10
@@ -86,11 +101,115 @@
                        (done))))))
 
 (deftest the-store-says-its-settings
-  (let [problems (try (live-updates/make-question-store identity {:gather-changes-ms 50})
+  (let [problems (try (live-updates/make-question-store identity {:gather-changes-ms 50} (options))
                       nil
                       (catch :default e (ex-data e)))]
     (is (= :groundwork-live-updates/bad-settings (:type problems)) "refused, nothing filled in")
-    (is (= #{:keep-unwatched-answers-ms} (set (keys (:errors problems)))))))
+    (is (= #{:keep-unwatched-answers-ms :ask-again-at-most-every-ms} (set (keys (:errors problems))))))
+  (let [problems (try (live-updates/make-question-store identity settings {}) nil (catch :default e (ex-data e)))]
+    (is (= :groundwork-live-updates/bad-options (:type problems)) "the page is handed in")
+    (is (= #{:page} (set (keys (:errors problems))))))
+  (is (= :groundwork-live-updates/bad-options
+         (:type (try (live-updates/make-question-store identity settings {:page #js {}}) nil (catch :default e (ex-data e)))))
+      "something that isn't a document"))
+
+(def ^:private calm-settings {:gather-changes-ms 10 :keep-unwatched-answers-ms 1000 :ask-again-at-most-every-ms 100})
+
+(deftest a-question-is-asked-again-at-most-once-a-window
+  (async done
+         (let [{:keys [asked send-message!]} (make-stand-in-server {:orders/all ["orders"]})
+               store (live-updates/make-question-store send-message! calm-settings (options))
+               heard (atom [])]
+           (live-updates/watch-question! store [:orders/all {}] #(swap! heard conj %))   ; asked at 0
+           (after-ms 20
+                     (fn []
+                       (is (= {:orders/all 1} @asked))
+                       (live-updates/hear-changed-table! store "orders")
+                       (after-ms 30
+                                 (fn []
+                                   (is (= {:orders/all 1} @asked) "gathered at 30, but within the window of the ask at 0: not yet")
+                                   (is (true? (live-updates/is-question-being-asked? store [:orders/all {}])) "waiting for its window: on its way")
+                                   (live-updates/hear-changed-table! store "orders")
+                                   (live-updates/hear-changed-table! store "orders")
+                                   (after-ms 70
+                                             (fn []
+                                               (is (= {:orders/all 2} @asked) "three changes, one ask, at the window's end")
+                                               (is (= [1 2] @heard))
+                                               (live-updates/hear-changed-table! store "orders")
+                                               (after-ms 40
+                                                         (fn []
+                                                           (is (= {:orders/all 2} @asked) "the window starts again from that ask")
+                                                           (after-ms 90
+                                                                     (fn []
+                                                                       (is (= {:orders/all 3} @asked))
+                                                                       (done))))))))))))))
+
+(deftest a-change-during-an-ask-is-asked-once-after-it
+  (async done
+         (let [held    (atom [])
+               answer! (fn [] (let [[[message resolve]] @held]
+                                (swap! held subvec 1)
+                                (let [[message-name] (first message)]
+                                  (resolve {message-name (count @held) :groundwork-steps/notes {message-name {:tables ["orders"]}}}))))
+               store   (live-updates/make-question-store (fn [message] (js/Promise. (fn [resolve _] (swap! held conj [message resolve]))))
+                                                         (assoc calm-settings :ask-again-at-most-every-ms 0) (options))]
+           (live-updates/watch-question! store [:orders/all {}] identity)
+           (is (= 1 (count @held)) "out")
+           (live-updates/hear-changed-table! store "orders")
+           (live-updates/hear-changed-table! store "orders")
+           (after-ms 30
+                     (fn []
+                       (is (= 1 (count @held)) "changes while it is out: not asked beside it")
+                       (is (true? (live-updates/is-question-being-asked? store [:orders/all {}])))
+                       (answer!)
+                       (after-ms 10
+                                 (fn []
+                                   (is (= 1 (count @held)) "asked once after it landed")
+                                   (answer!)
+                                   (after-ms 30
+                                             (fn []
+                                               (is (= 0 (count @held)) "and only once")
+                                               (is (false? (live-updates/is-question-being-asked? store [:orders/all {}])))
+                                               (done))))))))))
+
+(deftest a-page-nobody-sees-asks-once-when-it-is-seen
+  (async done
+         (let [{:keys [asked send-message!]} (make-stand-in-server {:orders/all ["orders"] :shops/all ["shops"] :notes/all ["notes"]})
+               page  (make-page "visible")
+               store (live-updates/make-question-store send-message! (assoc calm-settings :ask-again-at-most-every-ms 0) {:page page})]
+           (live-updates/watch-question! store [:orders/all {}] identity)
+           (live-updates/watch-question! store [:shops/all {}] identity)
+           (live-updates/watch-question! store [:notes/all {}] identity)
+           (after-ms 20
+                     (fn []
+                       (hide! page)
+                       (live-updates/hear-changed-table! store "orders")
+                       (live-updates/hear-changed-table! store "orders")
+                       (live-updates/hear-changed-table! store "shops")
+                       (live-updates/hear-missed-changes! store)
+                       (after-ms 40
+                                 (fn []
+                                   (is (= {:orders/all 1 :shops/all 1 :notes/all 1} @asked) "hidden: nothing asked again")
+                                   (is (true? (live-updates/is-question-being-asked? store [:orders/all {}])) "it will be, when seen")
+                                   (show! page)
+                                   (after-ms 20
+                                             (fn []
+                                               (is (= {:orders/all 2 :shops/all 2 :notes/all 2} @asked)
+                                                   "seen again: each question a change touched (the missed changes touched all), once")
+                                               (show! page)
+                                               (after-ms 20
+                                                         (fn []
+                                                           (is (= {:orders/all 2 :shops/all 2 :notes/all 2} @asked) "seen again with nothing changed: nothing asked")
+                                                           (hide! page)
+                                                           (live-updates/hear-changed-table! store "shops")
+                                                           (after-ms 30
+                                                                     (fn []
+                                                                       (show! page)
+                                                                       (after-ms 20
+                                                                                 (fn []
+                                                                                   (is (= {:orders/all 2 :shops/all 3 :notes/all 2} @asked)
+                                                                                       "only what a change touched while hidden")
+                                                                                   (done))))))))))))))))
 
 (deftest the-messages-have-their-shapes
   (testing "the three shapes for each of the server's two messages, as the wire (groundwork-bridge) takes them"
@@ -101,7 +220,7 @@
 (deftest a-change-the-browser-learns-of-itself
   (async done
          (let [{:keys [asked send-message!]} (make-stand-in-server {:orders/all ["orders"] :shops/all ["shops"]})
-               store (live-updates/make-question-store send-message! settings)]
+               store (live-updates/make-question-store send-message! settings (options))]
            (live-updates/watch-question! store [:orders/all {}] identity)
            (live-updates/watch-question! store [:shops/all {}] identity)
            (after-ms 10
@@ -123,7 +242,7 @@
                                    (resolve {message-name 1 :groundwork-steps/notes {message-name {:tables ["orders"]}}}))))
                store    (live-updates/make-question-store
                          (fn [message] (js/Promise. (fn [resolve _] (swap! held conj [message resolve]))))
-                         settings)
+                         settings (options))
                orders   [:orders/all {}]]
            (is (false? (live-updates/is-question-being-asked? store orders)) "never asked")
            (live-updates/watch-question! store orders identity)

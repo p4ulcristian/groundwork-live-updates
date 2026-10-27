@@ -10,7 +10,8 @@
      ;; the app plugs the store into its wire (groundwork does, with groundwork-bridge):
      ;; the send and the sse line are the app's, and so is the shaper they take
      (def store (live-updates/make-question-store #(bridge/send-message! (:http addresses) shapes-by-name % {:shaper groundwork-shaped-json :headers {} :keep-alive? false})
-                                              {:gather-changes-ms 50 :keep-unwatched-answers-ms 300000}))
+                                              {:gather-changes-ms 50 :keep-unwatched-answers-ms 300000 :ask-again-at-most-every-ms 2000}
+                                              {:page js/document}))
      (bridge/open-sse-line! (:sse addresses) (merge shapes-by-name live-updates/message-shapes-by-name)
                               (live-updates/make-sse-handlers store)
                               {:shaper               groundwork-shaped-json
@@ -40,13 +41,20 @@
    every key required, checked first (:groundwork-live-updates/bad-settings):
    :gather-changes-ms, how long changes are gathered before the questions
    they touch are asked again; :keep-unwatched-answers-ms, how long an
-   answer no screen watches is kept."
-  [send-message! settings]
-  (store/make-store send-message! (settings/check-store-settings settings)))
+   answer no screen watches is kept; :ask-again-at-most-every-ms, the
+   window each question is asked again at most once in (2000). Options,
+   every key required, checked first (:groundwork-live-updates/bad-options): :page,
+   the page's document, js/document, whose visibilityState says whether
+   someone sees it: a page nobody sees asks nothing again, and asks each
+   question a change touched meanwhile once, when it is seen again."
+  [send-message! settings options]
+  (store/make-store send-message! (settings/check-store-settings settings) (settings/check-store-options options)))
 
 (defn watch-question!
   "(on-answer answer) with the kept answer now, if any, and with each new
-   one: asked now, and again when a table it was read from changes. Returns
+   one: asked now, and again when a table it was read from changes (calmly:
+   on a page someone sees, at most once in :ask-again-at-most-every-ms,
+   once after an ask that is out). Returns
    a function that stops watching; the answer is kept
    :keep-unwatched-answers-ms after the last watcher stops."
   [store question on-answer]
@@ -64,8 +72,9 @@
 
 (defn is-question-being-asked?
   "Whether an answer newer than the kept one is on its way: the question
-   is out now, or a change heard and still gathered (:gather-changes-ms)
-   will ask it again. For waiting on the fresh answer rather than taking
+   is out now, or will be asked again: after the ask that is out, at the
+   end of its window (:ask-again-at-most-every-ms), when the page is seen
+   again, or by a change heard and still gathered (:gather-changes-ms). For waiting on the fresh answer rather than taking
    the kept one."
   [store question]
   (store/is-being-asked? store question))
@@ -74,14 +83,14 @@
   "A table changed (its name, \"orders\"), as the sse line's
    :groundwork-live-updates/changed tells it: gathered with the other changes for
    :gather-changes-ms, then every watched question that read it is asked
-   again. For a change the browser learns of itself: a write's answer,
+   again, calmly. For a change the browser learns of itself: a write's answer,
    whose notes name the tables it wrote."
   [store table]
   (store/hear-change! store table))
 
 (defn hear-missed-changes!
-  "Asks again every watched question: for when the sse line opens again
-   after a break, and changes may have gone unheard."
+  "Asks again every watched question, calmly: for when the sse line opens
+   again after a break, and changes may have gone unheard."
   [store]
   (store/hear-missed! store))
 

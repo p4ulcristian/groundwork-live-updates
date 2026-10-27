@@ -1,5 +1,7 @@
 # The question store v1
 
+> **Changed in part** by [The browser asks again calmly](2026-10-27-the-browser-asks-again-calmly.md) (2026-10-27, v0.6.0): a change asks a watched question again only on a page someone can see (a hidden one asks once when seen), at most once in `:ask-again-at-most-every-ms`, and a change during a running ask once after it lands; the store takes the page's document.
+
 > **Added to** by [A change can be told by the browser, and an answer on its way is known](2026-10-23-a-change-can-be-told-and-an-answer-on-its-way-known.md) (2026-10-23, v0.4.0): `hear-changed-table!` and `is-question-being-asked?`.
 
 > **Changed in part** by [doorbell is its own library](2026-10-22-doorbell-is-its-own-library.md) (2026-10-22, v0.1.0): the store is doorbell's; the 50 ms gather and the 5-minute keep are the required settings `:gather-changes-ms` and `:keep-unwatched-answers-ms`; the messages are `:doorbell/changed` and `:doorbell/missed`.

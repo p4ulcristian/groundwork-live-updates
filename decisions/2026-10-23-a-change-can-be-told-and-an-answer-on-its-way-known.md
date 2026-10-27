@@ -1,5 +1,7 @@
 # A change can be told by the browser, and an answer on its way is known
 
+> **Changed in part** by [The browser asks again calmly](2026-10-27-the-browser-asks-again-calmly.md) (2026-10-27, v0.6.0): a change the browser tells is asked again calmly too; `is-question-being-asked?` is also true while a question waits for its window, for the page to be seen, or for the ask that is out.
+
 > Adds to [The question store v1](2026-10-22-the-question-store-v1.md). Since v0.4.0.
 
 **Decision:** the browser's side has two more functions.

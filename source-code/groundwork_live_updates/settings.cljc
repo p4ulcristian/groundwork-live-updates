@@ -17,10 +17,24 @@
    changes is one round of asking.
    :keep-unwatched-answers-ms: how long an answer no screen watches is
    kept, shown at once when a screen watches its question again, before
-   it is dropped."
+   it is dropped.
+   :ask-again-at-most-every-ms: a question a change touches is asked again
+   at most once in this window since it was last asked (2000): a burst of
+   changes is one ask, at the window's end; 0, at once."
   [:map {:closed true}
    [:gather-changes-ms [:int {:min 0}]]
-   [:keep-unwatched-answers-ms [:int {:min 0}]]])
+   [:keep-unwatched-answers-ms [:int {:min 0}]]
+   [:ask-again-at-most-every-ms [:int {:min 0}]]])
+
+#?(:cljs
+   (def store-options-shape
+     "The question store's options, in the browser, every key required.
+      :page: the page's document (js/document): whether someone can see it
+      (its visibilityState) and when that changes (its visibilitychange),
+      so a page nobody sees asks nothing again until it is seen."
+     [:map {:closed true}
+      [:page [:fn {:error/message "should be the page's document, js/document: its visibilityState and visibilitychange"}
+              #(and (some? %) (string? (.-visibilityState %)) (fn? (.-addEventListener %)))]]]))
 
 (def listening-settings-shape
   "The server's listening settings, every key required: what
@@ -80,6 +94,10 @@
 
 (defn check-store-settings [settings]
   (check-data-for-shape "The settings" :groundwork-live-updates/bad-settings store-settings-shape settings))
+
+#?(:cljs
+   (defn check-store-options [options]
+     (check-data-for-shape "The options" :groundwork-live-updates/bad-options store-options-shape options)))
 
 (defn check-listening-settings [settings]
   (check-data-for-shape "The settings" :groundwork-live-updates/bad-settings listening-settings-shape settings))
