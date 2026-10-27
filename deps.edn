@@ -10,7 +10,7 @@
   ;; a reference what it does on delete, update and when checked, an index as a map;
   ;; migrate! takes {:tables :extensions :functions :views}; run-in-transaction! takes the
   ;; caller's :log
-  io.github.p4ulcristian/groundwork-postgres   {:git/tag "v0.4.10" :git/sha "0956bdc"}
+  io.github.p4ulcristian/groundwork-postgres   {:git/tag "v0.5.0" :git/sha "bca8150"}
   ;; groundwork-steps: a handler's notes and the message's log in its steps' context, and the
   ;; browser's no-answer refusal (the lines a change is told on are the app's, handed in)
   io.github.p4ulcristian/groundwork-steps {:git/tag "v0.1.0" :git/sha "ed9458e"}
