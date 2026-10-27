@@ -2,7 +2,7 @@
 
 One file per decision: `YYYY-MM-DD-what-we-decided.md`. The title is the decision. Each file says what we decided, why, and what we chose against. A decision changes by a new file; the old one says so at the top (`Replaced by` or `Changed in part by`), and nothing else in it is rewritten.
 
-All but the last nine were made while doorbell was a library inside Groundwork, a Clojure framework (groundwork.server.sync and groundwork.browser.sync, called bells before); they name its parts (its schema, its sessions and access, transport, `:sync`, `groundwork.tell_sync`) where they came from. The ones they name that stayed with Groundwork are named by title, in plain text. Groundwork now names both the family of libraries this one belongs to and the composer that puts them together; the decisions that stayed with Groundwork are in the composer's `decisions/`.
+All but the last ten were made while doorbell was a library inside Groundwork, a Clojure framework (groundwork.server.sync and groundwork.browser.sync, called bells before); they name its parts (its schema, its sessions and access, transport, `:sync`, `groundwork.tell_sync`) where they came from. The ones they name that stayed with Groundwork are named by title, in plain text. Groundwork now names both the family of libraries this one belongs to and the composer that puts them together; the decisions that stayed with Groundwork are in the composer's `decisions/`.
 
 ## In force
 
@@ -16,8 +16,9 @@ All but the last nine were made while doorbell was a library inside Groundwork, 
 - [Listening's numbers are doorbell's settings; a silent table writes out its :on-change](2026-10-22-listening-s-numbers-are-settings.md), changed in part by [The app passes its log](2026-10-22-the-app-passes-its-log.md)
 - [doorbell takes no wire: lines carry the app's, Postgres's messages are read with jsonista](2026-10-22-doorbell-takes-no-wire.md), changed in part by [groundwork-live-updates requires no wire](2026-10-24-groundwork-live-updates-requires-no-wire.md)
 - [The app passes its log; the notes are taken with the message's](2026-10-22-the-app-passes-its-log.md), changed in part by [Changes heard and lines told are counted on the app's meter](2026-10-23-changes-and-tells-are-counted-on-the-apps-meter.md)
-- [A change can be told by the browser, and an answer on its way is known](2026-10-23-a-change-can-be-told-and-an-answer-on-its-way-known.md), changed in part by [The browser asks again calmly](2026-10-27-the-browser-asks-again-calmly.md)
+- [A change can be told by the browser, and an answer on its way is known](2026-10-23-a-change-can-be-told-and-an-answer-on-its-way-known.md), changed in part by [The browser asks again calmly](2026-10-27-the-browser-asks-again-calmly.md) and [A writer's own change is asked again at once](2026-10-27-a-writers-own-change-is-asked-again-at-once.md)
 - [Changes heard and lines told are counted on the app's meter](2026-10-23-changes-and-tells-are-counted-on-the-apps-meter.md)
 - [An ask with no answer is bridge's :bridge/no-answer refusal](2026-10-23-an-ask-with-no-answer-is-bridges-no-answer-refusal.md), changed in part by [groundwork-live-updates requires no wire](2026-10-24-groundwork-live-updates-requires-no-wire.md)
 - [groundwork-live-updates requires no wire: it is handed how a line is told, and shares groundwork-steps's shapes](2026-10-24-groundwork-live-updates-requires-no-wire.md) (groundwork v4.0.0)
-- [The browser asks again calmly](2026-10-27-the-browser-asks-again-calmly.md) (v0.6.0)
+- [The browser asks again calmly](2026-10-27-the-browser-asks-again-calmly.md) (v0.6.0), changed in part by [A writer's own change is asked again at once](2026-10-27-a-writers-own-change-is-asked-again-at-once.md)
+- [A writer's own change is asked again at once](2026-10-27-a-writers-own-change-is-asked-again-at-once.md) (v0.6.1)

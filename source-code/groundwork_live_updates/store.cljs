@@ -19,6 +19,11 @@
      changes is one ask, at the window's end), and a change while it is
      out asks it once after it lands. Watching and ask-question-again!
      ask at once.
+   - A writer's own change, which the browser learns from its own write's
+     answer (hear-own-change!), skips the window: what it touches is asked
+     at once when the gathering ends (or once the ask that is out lands),
+     and a window's wait for it is called off. Changes told by others keep
+     the window.
    - An answer no screen watches is kept :keep-unwatched-answers-ms, then
      dropped.
    - An ask whose send-message! fails is answered groundwork-steps's refusal
@@ -56,6 +61,7 @@
                :questions                  (atom {})
                :next-number                (atom 0)
                :changed                    (atom #{})
+               :own-changed                (atom #{})
                :gathering?                 (atom false)}]
     (.addEventListener page "visibilitychange" #(when (is-page-seen? store) (ask-missed! store)))
     store))
@@ -72,13 +78,19 @@
     (swap! (:questions store) update question assoc :answer answer :tables tables :answered? true)
     (tell-watchers! store question)))
 
-(declare ask! ask-calmly!)
+(declare ask! ask-calmly! ask-at-once!)
 
-(defn- land! [store question]
-  (swap! (:questions store) update question assoc :out? false)
-  (when (get-in @(:questions store) [question :ask-again?])
-    (swap! (:questions store) update question assoc :ask-again? false)
-    (ask-calmly! store question)))
+(defn- land!
+  "The ask is back: a question to ask again after it is asked, at once for
+   a writer's own change, else calmly."
+  [store question]
+  (let [again (get-in @(:questions store) [question :ask-again?])]
+    (swap! (:questions store) update question assoc :out? false :ask-again? false)
+    (case again
+      :at-once (ask-at-once! store question)
+      false    nil
+      nil      nil
+      (ask-calmly! store question))))
 
 (defn- find-tables-of-answer
   "The tables the server's notes say the answer was read from; \"any\"
@@ -92,7 +104,7 @@
    (calmly: ask-calmly!)."
   [{:keys [send-message! next-number questions] :as store} [message-name params :as question]]
   (if (get-in @questions [question :out?])
-    (swap! questions update question assoc :ask-again? true)
+    (swap! questions update question update :ask-again? #(if (= :at-once %) :at-once true))
     (let [number (swap! next-number inc)]
       (swap! questions update question assoc :out? true :newest-number number :asked-at (js/Date.now) :missed? false)
       (-> (send-message! {message-name params})
@@ -114,17 +126,34 @@
     (cond
       (empty? watchers)           nil
       (not (is-page-seen? store)) (swap! questions update question assoc :missed? true)
-      out?                        (swap! questions update question assoc :ask-again? true)
+      out?                        (swap! questions update question update :ask-again? #(if (= :at-once %) :at-once true))
       waiting?                    nil
       :else
       (let [wait (if asked-at (- (+ asked-at ask-again-at-most-every-ms) (js/Date.now)) 0)]
         (if (pos? wait)
-          (do (swap! questions update question assoc :waiting? true)
-              (js/setTimeout (fn []
-                               (swap! questions update question assoc :waiting? false)
-                               (ask-calmly! store question))
-                             wait))
+          (swap! questions update question assoc :waiting? true
+                 :wait-timer (js/setTimeout (fn []
+                                              (swap! questions update question assoc :waiting? false :wait-timer nil)
+                                              (ask-calmly! store question))
+                                            wait))
           (ask! store question))))))
+
+(defn- ask-at-once!
+  "Asks a watched question again for the writer's own change, past the
+   window: a window's wait for it is called off and it is asked now; while
+   it is out, once at once after it lands (the ask out may have left
+   before the write). On a page nobody can see, once when it is seen
+   again, as any change. An unwatched question isn't asked."
+  [{:keys [questions] :as store} question]
+  (let [{:keys [watchers out? wait-timer]} (get @questions question)]
+    (cond
+      (empty? watchers)           nil
+      (not (is-page-seen? store)) (swap! questions update question assoc :missed? true)
+      out?                        (swap! questions update question assoc :ask-again? :at-once)
+      :else
+      (do (when wait-timer (js/clearTimeout wait-timer))
+          (swap! questions update question assoc :waiting? false :wait-timer nil)
+          (ask! store question)))))
 
 (defn- ask-missed!
   "The page is seen again: every watched question a change touched while
@@ -168,24 +197,35 @@
   [{:keys [tables]} changed]
   (or (nil? tables) (= "any" tables) (= :all changed) (some (set changed) tables)))
 
-(defn- ask-watched-again! [{:keys [questions] :as store} changed]
+(defn- ask-watched-again!
+  "Every watched question a change touched: at once when one of the
+   writer's own changed tables touched it, else calmly."
+  [{:keys [questions] :as store} changed own-changed]
   (doseq [[question kept] @questions
           :when (and (seq (:watchers kept)) (does-question-read? kept changed))]
-    (ask-calmly! store question)))
+    (if (and (seq own-changed) (does-question-read? kept own-changed))
+      (ask-at-once! store question)
+      (ask-calmly! store question))))
 
 (defn hear-change!
-  "A change to a table, from the server: gathered for :gather-changes-ms,
-   then every watched question that read one of the changed tables is
-   asked again, calmly (ask-calmly!)."
-  [{:keys [changed gathering? gather-changes-ms] :as store} table]
+  "A change to a table: told :by-others (the server's sse line) or
+   :by-own-write (the browser's own write's answer). Gathered for
+   :gather-changes-ms, then every watched question that read one of the
+   changed tables is asked again: at once for the writer's own change
+   (ask-at-once!), calmly for the others' (ask-calmly!)."
+  [{:keys [changed own-changed gathering? gather-changes-ms] :as store} table told]
   (swap! changed conj table)
+  (when (= :by-own-write told)
+    (swap! own-changed conj table))
   (when-not @gathering?
     (reset! gathering? true)
     (js/setTimeout (fn []
-                     (let [tables @changed]
+                     (let [tables @changed
+                           own    @own-changed]
                        (reset! changed #{})
+                       (reset! own-changed #{})
                        (reset! gathering? false)
-                       (ask-watched-again! store tables)))
+                       (ask-watched-again! store tables own)))
                    gather-changes-ms)))
 
 (defn is-being-asked?
@@ -204,4 +244,4 @@
   "Changes may have been missed (the line broke): every watched question
    is asked again, calmly (ask-calmly!)."
   [store]
-  (ask-watched-again! store :all))
+  (ask-watched-again! store :all #{}))

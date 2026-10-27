@@ -264,3 +264,73 @@
                                              (fn []
                                                (is (false? (live-updates/is-question-being-asked? store orders)))
                                                (done))))))))))
+
+(deftest a-writers-own-change-is-asked-again-at-once
+  (async done
+         (let [{:keys [asked send-message!]} (make-stand-in-server {:orders/all ["orders"] :shops/all ["shops"]})
+               store    (live-updates/make-question-store send-message! calm-settings (options))
+               handlers (live-updates/make-sse-handlers store)]
+           (live-updates/watch-question! store [:orders/all {}] identity)   ; asked at 0
+           (live-updates/watch-question! store [:shops/all {}] identity)    ; asked at 0
+           (after-ms 20
+                     (fn []
+                       (live-updates/hear-own-changed-table! store "orders")
+                       ((:groundwork-live-updates/changed handlers) {:table "shops"})
+                       (is (true? (live-updates/is-question-being-asked? store [:orders/all {}])) "gathered: on its way")
+                       (after-ms 20
+                                 (fn []
+                                   (is (= {:orders/all 2 :shops/all 1} @asked)
+                                       "the writer's own change: asked when the gathering ends, inside the window; the others' change waits for it")
+                                   (after-ms 90
+                                             (fn []
+                                               (is (= {:orders/all 2 :shops/all 2} @asked) "the others' change at its window's end")
+                                               (done))))))))))
+
+(deftest a-writers-own-change-calls-off-a-windows-wait
+  (async done
+         (let [{:keys [asked send-message!]} (make-stand-in-server {:orders/all ["orders"]})
+               store    (live-updates/make-question-store send-message! calm-settings (options))
+               handlers (live-updates/make-sse-handlers store)]
+           (live-updates/watch-question! store [:orders/all {}] identity)   ; asked at 0
+           (after-ms 20
+                     (fn []
+                       ((:groundwork-live-updates/changed handlers) {:table "orders"})   ; waits for the window: 100
+                       (after-ms 20
+                                 (fn []
+                                   (is (= {:orders/all 1} @asked) "the others' change waits")
+                                   (live-updates/hear-own-changed-table! store "orders")
+                                   (after-ms 20
+                                             (fn []
+                                               (is (= {:orders/all 2} @asked) "the writer's own change: now")
+                                               (after-ms 120
+                                                         (fn []
+                                                           (is (= {:orders/all 2} @asked)
+                                                               "the window's wait called off: its change is in the answer already, no ask more")
+                                                           (is (false? (live-updates/is-question-being-asked? store [:orders/all {}])))
+                                                           (done))))))))))))
+
+(deftest a-writers-own-change-during-an-ask-is-asked-at-once-after-it
+  (async done
+         (let [held    (atom [])
+               answer! (fn [] (let [[[message resolve]] @held]
+                                (swap! held subvec 1)
+                                (let [[message-name] (first message)]
+                                  (resolve {message-name (count @held) :groundwork-steps/notes {message-name {:tables ["orders"]}}}))))
+               store   (live-updates/make-question-store (fn [message] (js/Promise. (fn [resolve _] (swap! held conj [message resolve]))))
+                                                         calm-settings (options))]
+           (live-updates/watch-question! store [:orders/all {}] identity)   ; out at 0
+           (after-ms 5
+                     (fn []
+                       (live-updates/hear-own-changed-table! store "orders")
+                       (after-ms 20
+                                 (fn []
+                                   (is (= 1 (count @held)) "the writer's own change while it is out: not asked beside it")
+                                   (answer!)
+                                   (after-ms 10
+                                             (fn []
+                                               (is (= 1 (count @held)) "asked again as soon as it landed, inside the window")
+                                               (answer!)
+                                               (after-ms 120
+                                                         (fn []
+                                                           (is (= 0 (count @held)) "and only once")
+                                                           (done))))))))))))

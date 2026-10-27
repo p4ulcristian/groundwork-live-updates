@@ -10,7 +10,10 @@ the changed table, and calmly: only on a page someone can see (a hidden
 tab asks once when it is seen again), each question at most once in
 `:ask-again-at-most-every-ms` (a burst of changes is one ask), a change
 during a running ask asked once after it
-([why](decisions/2026-10-27-the-browser-asks-again-calmly.md)); the gates
+([why](decisions/2026-10-27-the-browser-asks-again-calmly.md)); a writer's
+own change, which the browser learns from its own write's answer, is asked
+at once, past the window
+([why](decisions/2026-10-27-a-writers-own-change-is-asked-again-at-once.md)); the gates
 (Postgres's row rules) decide what each asker gets. groundwork-live-updates
 decides no one's access.
 
@@ -62,7 +65,8 @@ open lines (groundwork-bridge's `groundwork_bridge_open_lines`).
 | browser | `make-question-store` | answers kept by question, `[name params]`, asked through the app's send (groundwork-bridge's `send-message!` in groundwork); the page's document handed in (`{:page js/document}`), whose visibility says whether to ask again |
 | browser | `watch-question!` `ask-question-again!` `find-kept-answer` | a screen watches what it shows; asked now, and again, calmly, when a table it read changes |
 | browser | `is-question-being-asked?` | whether a fresher answer is on its way: out now, or it will be asked again (after the ask that is out, at its window's end, when the page is seen, or by a gathered change) |
-| browser | `hear-changed-table!` | a table changed, told by the browser itself (a write's answer): gathered, then what read it is asked again |
+| browser | `hear-changed-table!` | a table changed, told by others (the sse line's message): gathered, then what read it is asked again, calmly |
+| browser | `hear-own-changed-table!` | a table this browser's own write changed (its answer's notes name it): gathered, then what read it is asked again at once, past the window |
 | browser | `message-shapes-by-name` `make-sse-handlers` `hear-missed-changes!` | the two messages, their shapes and handlers; after a break, every watched question asked again |
 
 Nothing has a default: every setting is written out; a missing one

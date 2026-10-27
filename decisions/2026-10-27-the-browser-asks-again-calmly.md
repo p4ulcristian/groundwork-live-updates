@@ -1,5 +1,7 @@
 # The browser asks again calmly
 
+> **Changed in part** by [A writer's own change is asked again at once](2026-10-27-a-writers-own-change-is-asked-again-at-once.md) (2026-10-27, v0.6.1): a change the browser learns from its own write's answer, told by `hear-own-changed-table!`, skips the window; changes told by others keep it.
+
 > The user's decision, 2026-10-27 (the switch of Iron Rainbow onto groundwork-3, decision 2: live updates tell by table, the gates decide; the browser asks again calmly: only questions on a page someone can see, a hidden tab asking once when shown, at most once per question per window, a setting, e.g. 2000 ms). Since v0.6.0. Changes in part [The question store v1](2026-10-22-the-question-store-v1.md) and [A change can be told by the browser, and an answer on its way is known](2026-10-23-a-change-can-be-told-and-an-answer-on-its-way-known.md).
 
 **Decision:** telling stays by table, as designed; the store asks again calmly. A change that touches a watched question (heard over sse, told by the browser itself, or every one after a break) asks it again:

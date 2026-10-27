@@ -20,7 +20,7 @@
                                :reconnect-after-ms sse-reconnect-after-ms})
      (def stop (live-updates/watch-question! store [:orders/of-shop {:shop/id shop-id}] show-orders!))
      (live-updates/is-question-being-asked? store [:orders/of-shop {:shop/id shop-id}])  ; a fresher answer coming?
-     (live-updates/hear-changed-table! store \"orders\")         ; a write's answer noted it
+     (live-updates/hear-own-changed-table! store \"orders\")     ; this browser's write's answer noted it: asked at once
      (stop)                                                 ; when the screen goes"
   (:require
    [groundwork-live-updates.settings :as settings]
@@ -80,13 +80,24 @@
   (store/is-being-asked? store question))
 
 (defn hear-changed-table!
-  "A table changed (its name, \"orders\"), as the sse line's
-   :groundwork-live-updates/changed tells it: gathered with the other changes for
-   :gather-changes-ms, then every watched question that read it is asked
-   again, calmly. For a change the browser learns of itself: a write's answer,
-   whose notes name the tables it wrote."
+  "A table changed (its name, \"orders\"), told by others, as the sse
+   line's :groundwork-live-updates/changed tells it: gathered with the
+   other changes for :gather-changes-ms, then every watched question that
+   read it is asked again, calmly (at most once in
+   :ask-again-at-most-every-ms)."
   [store table]
-  (store/hear-change! store table))
+  (store/hear-change! store table :by-others))
+
+(defn hear-own-changed-table!
+  "A table this browser's own write changed (its name, \"orders\"), as
+   the write's answer's notes name the tables it wrote: gathered with the
+   other changes for :gather-changes-ms, then every watched question that
+   read it is asked again at once, past :ask-again-at-most-every-ms (a
+   window's wait for it called off; while it is out, once at once after
+   it lands), so the writer sees their change. On a page nobody can see,
+   once when it is seen again, as any change."
+  [store table]
+  (store/hear-change! store table :by-own-write))
 
 (defn hear-missed-changes!
   "Asks again every watched question, calmly: for when the sse line opens
