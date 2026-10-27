@@ -15,7 +15,7 @@ during a running ask asked once after it
 decides no one's access.
 
 ```clojure
-io.github.p4ulcristian/groundwork-live-updates {:git/tag "v0.5.14" :git/sha "9c29bbe"}
+io.github.p4ulcristian/groundwork-live-updates {:git/tag "v0.6.0" :git/sha "a2e8443"}
 ```
 
 Needs [groundwork-postgres](https://github.com/p4ulcristian/groundwork-postgres) (Postgres: the
