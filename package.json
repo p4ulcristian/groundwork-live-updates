@@ -9,6 +9,6 @@
     "big.js": "7.0.1"
   },
   "devDependencies": {
-    "shadow-cljs": "3.5.7"
+    "shadow-cljs": "3.5.8"
   }
 }
