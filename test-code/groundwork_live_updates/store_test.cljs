@@ -172,6 +172,28 @@
                                                (is (false? (live-updates/is-question-being-asked? store [:orders/all {}])))
                                                (done))))))))))
 
+(deftest a-change-during-a-first-ask-counts-only-if-the-answer-read-its-table
+  (async done
+         (let [held    (atom [])
+               answer! (fn [] (let [[[message resolve]] @held]
+                                (swap! held subvec 1)
+                                (let [[message-name] (first message)]
+                                  (resolve {message-name (count @held) :groundwork-steps/notes {message-name {:tables ["orders"]}}}))))
+               store   (live-updates/make-question-store (fn [message] (js/Promise. (fn [resolve _] (swap! held conj [message resolve]))))
+                                                         (assoc calm-settings :ask-again-at-most-every-ms 0) (options))]
+           (live-updates/watch-question! store [:orders/all {}] identity)
+           (live-updates/hear-own-changed-table! store "page_speeds")
+           (live-updates/hear-changed-table! store "page_speeds")
+           (after-ms 30
+                     (fn []
+                       (is (= 1 (count @held)) "out, its tables not known yet: not asked beside it")
+                       (answer!)
+                       (after-ms 30
+                                 (fn []
+                                   (is (= 0 (count @held)) "its answer read orders, not page_speeds: not asked again")
+                                   (is (false? (live-updates/is-question-being-asked? store [:orders/all {}])))
+                                   (done))))))))
+
 (deftest a-page-nobody-sees-asks-once-when-it-is-seen
   (async done
          (let [{:keys [asked send-message!]} (make-stand-in-server {:orders/all ["orders"] :shops/all ["shops"] :notes/all ["notes"]})

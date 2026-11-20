@@ -64,6 +64,7 @@ open lines (groundwork-bridge's `groundwork_bridge_open_lines`).
 | both | `store-settings-shape` | the question store's settings, every key required |
 | browser | `make-question-store` | answers kept by question, `[name params]`, asked through the app's send (groundwork-bridge's `send-message!` in groundwork); the page's document handed in (`{:page js/document}`), whose visibility says whether to ask again |
 | browser | `watch-question!` `ask-question-again!` `find-kept-answer` | a screen watches what it shows; asked now, and again, calmly, when a table it read changes |
+| browser | (a first ask out) | a change heard while a question's first ask is out is kept and weighed when its answer lands, against the tables the answer was read from: no overlap, no second ask |
 | browser | `is-question-being-asked?` | whether a fresher answer is on its way: out now, or it will be asked again (after the ask that is out, at its window's end, when the page is seen, or by a gathered change) |
 | browser | `hear-changed-table!` | a table changed, told by others (the sse line's message): gathered, then what read it is asked again, calmly |
 | browser | `hear-own-changed-table!` | a table this browser's own write changed (its answer's notes name it): gathered, then what read it is asked again at once, past the window |

@@ -22,3 +22,4 @@ All but the last ten were made while doorbell was a library inside Groundwork, a
 - [groundwork-live-updates requires no wire: it is handed how a line is told, and shares groundwork-steps's shapes](2026-10-24-groundwork-live-updates-requires-no-wire.md) (groundwork v4.0.0)
 - [The browser asks again calmly](2026-10-27-the-browser-asks-again-calmly.md) (v0.6.0), changed in part by [A writer's own change is asked again at once](2026-10-27-a-writers-own-change-is-asked-again-at-once.md)
 - [A writer's own change is asked again at once](2026-10-27-a-writers-own-change-is-asked-again-at-once.md) (v0.6.1)
+- [A change heard during a question's first ask is weighed when its answer lands](2026-11-20-a-change-during-a-first-ask-is-weighed-when-its-answer-lands.md)

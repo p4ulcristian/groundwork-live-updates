@@ -80,12 +80,28 @@
 
 (declare ask! ask-calmly! ask-at-once!)
 
+(declare does-question-read?)
+
+(defn- again-for-unread-changes
+  "How a question is asked again for the changes heard while its first ask
+   was out, now that its answer says which tables it read: :at-once when a
+   writer's own change touched one of them, true when another's did, nil
+   when none did."
+  [{:keys [tables]} {changed :tables own :own}]
+  (cond
+    (and (seq own) (does-question-read? {:tables tables} own)) :at-once
+    (and changed (does-question-read? {:tables tables} changed)) true
+    :else nil))
+
 (defn- land!
   "The ask is back: a question to ask again after it is asked, at once for
-   a writer's own change, else calmly."
+   a writer's own change, else calmly. A first ask's changes heard while it
+   was out are weighed now, against the tables its answer was read from."
   [store question]
-  (let [again (get-in @(:questions store) [question :ask-again?])]
-    (swap! (:questions store) update question assoc :out? false :ask-again? false)
+  (let [kept    (get @(:questions store) question)
+        again   (or (:ask-again? kept)
+                    (some->> (:unread-changes kept) (again-for-unread-changes kept)))]
+    (swap! (:questions store) update question assoc :out? false :ask-again? false :unread-changes nil)
     (case again
       :at-once (ask-at-once! store question)
       false    nil
@@ -197,15 +213,27 @@
   [{:keys [tables]} changed]
   (or (nil? tables) (= "any" tables) (= :all changed) (some (set changed) tables)))
 
+(defn- keep-unread-changes!
+  "A question whose first ask is out reads tables nobody knows yet: the
+   changes are kept on it and weighed when its answer lands (land!), so a
+   change to a table it doesn't read doesn't ask it twice."
+  [{:keys [questions]} question changed own-changed]
+  (swap! questions update-in [question :unread-changes]
+         (fn [{kept-changed :tables kept-own :own}]
+           {:tables (if (or (= :all changed) (= :all kept-changed)) :all (into (set kept-changed) changed))
+            :own    (into (set kept-own) own-changed)})))
+
 (defn- ask-watched-again!
   "Every watched question a change touched: at once when one of the
-   writer's own changed tables touched it, else calmly."
+   writer's own changed tables touched it, else calmly. A question whose
+   first ask is out keeps the changes for when its answer lands."
   [{:keys [questions] :as store} changed own-changed]
   (doseq [[question kept] @questions
           :when (and (seq (:watchers kept)) (does-question-read? kept changed))]
-    (if (and (seq own-changed) (does-question-read? kept own-changed))
-      (ask-at-once! store question)
-      (ask-calmly! store question))))
+    (cond
+      (and (:out? kept) (nil? (:tables kept)))               (keep-unread-changes! store question changed own-changed)
+      (and (seq own-changed) (does-question-read? kept own-changed)) (ask-at-once! store question)
+      :else                                                  (ask-calmly! store question))))
 
 (defn hear-change!
   "A change to a table: told :by-others (the server's sse line) or
